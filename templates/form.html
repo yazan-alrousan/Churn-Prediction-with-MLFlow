@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Customer Churn Prediction</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+            max-width: 600px;
+            margin: auto;
+        }
+        label {
+            display: block;
+            margin-top: 1rem;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 0.5rem;
+            margin-top: 0.25rem;
+            margin-bottom: 1rem;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+        }
+        .tooltip {
+            display: inline-block;
+            cursor: help;
+            color: #007BFF;
+            margin-left: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <h2>Customer Churn Prediction</h2>
+    <form method="post" action="/predict/">
+        <label>
+            Age
+            <span class="tooltip" title="Enter your age.">[?]</span>
+        </label>
+        <input type="number" name="age" required>
+
+        <label>
+            Gender
+            <span class="tooltip" title="Select your gender.">[?]</span>
+        </label>
+        <select name="gender" required>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+        </select>
+
+        <label>
+            Tenure
+            <span class="tooltip" title="Specify how many months you’ve been using the company’s products or services.">[?]</span>
+        </label>
+        <input type="number" name="tenure" required>
+
+        <label>
+            Usage Frequency
+            <span class="tooltip" title="Indicate how many times you’ve used the company’s services in the last month.">[?]</span>
+        </label>
+        <input type="number" name="usage_frequency" required>
+
+        <label>
+            Support Calls
+            <span class="tooltip" title="Enter the number of support calls you’ve made in the last month.">[?]</span>
+        </label>
+        <input type="number" name="support_calls" required>
+
+        <label>
+            Payment Delay
+            <span class="tooltip" title="Provide the number of days your payment was delayed last month.">[?]</span>
+        </label>
+        <input type="number" name="payment_delay" required>
+
+        <label>
+            Total Spend
+            <span class="tooltip" title="Enter the total amount you’ve spent on the company’s products or services.">[?]</span>
+        </label>
+        <input type="number" step="0.01" name="total_spend" required>
+
+        <label>
+            Last Interaction
+            <span class="tooltip" title="Specify how many days it has been since your last interaction with the company.">[?]</span>
+        </label>
+        <input type="number" name="last_interaction" required>
+
+        <label>
+            Subscription Type
+            <span class="tooltip" title="Choose the subscription type you selected.">[?]</span>
+        </label>
+        <select name="subscription_type" required>
+            <option value="Basic">Basic</option>
+            <option value="Standard">Standard</option>
+            <option value="Premium">Premium</option>
+        </select>
+
+        <label>
+            Contract Length
+            <span class="tooltip" title="Select the length of the contract you signed with the company.">[?]</span>
+        </label>
+        <select name="contract_length" required>
+            <option value="Monthly">Monthly</option>
+            <option value="Quarterly">Quarterly</option>
+            <option value="Annual">Annual</option>
+        </select>
+
+        <button type="submit">Predict</button>
+    </form>
+
+    {% if prediction %}
+        <h3>Prediction: {{ prediction }}</h3>
+    {% endif %}
+</body>
+</html>
