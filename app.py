@@ -1,73 +1,80 @@
 import gradio as gr
 import pandas as pd
 import mlflow
+import pickle
 
-# Load model
+# Load preprocessing objects
+with open("encoder.pkl", "rb") as f:
+    encoder = pickle.load(f)
+
+with open("scaler.pkl", "rb") as f:
+    scaler = pickle.load(f)
+
+with open("pca.pkl", "rb") as f:
+    pca = pickle.load(f)
+
+# Load model from MLflow
 mlflow.set_tracking_uri("http://127.0.0.1:5000")
-MODEL_NAME = "CustomerChurnClassifier_LGBM"
+MODEL_NAME = "CustomerChurnClassifier_RFC"  # Replace with your final model name if needed
 MODEL_STAGE = "Production"
-model = mlflow.pyfunc.load_model(model_uri=f"models:/{MODEL_NAME}/{MODEL_STAGE}")
+model = mlflow.sklearn.load_model(model_uri=f"models:/{MODEL_NAME}/{MODEL_STAGE}")
 
-# Expected one-hot encoded features in correct order
-FEATURE_ORDER = [
-    'age', 'tenure', 'usage_frequency', 'support_calls', 'payment_delay',
-    'total_spend', 'last_interaction',
-    'gender_Female', 'gender_Male',
-    'subscription_type_Basic', 'subscription_type_Premium', 'subscription_type_Standard',
-    'contract_length_Annual', 'contract_length_Monthly', 'contract_length_Quarterly'
-]
+# Expected categorical columns
+cat_cols = ["gender", "subscription_type", "contract_length"]
 
-# Input processing function
+# Prepare input data for prediction
 def prepare_input(age, tenure, usage_frequency, support_calls, payment_delay,
                   total_spend, last_interaction, gender, subscription_type, contract_length):
-    # Base features
-    input_dict = {
+    num_input = pd.DataFrame([{
         "age": age,
         "tenure": tenure,
         "usage_frequency": usage_frequency,
         "support_calls": support_calls,
         "payment_delay": payment_delay,
         "total_spend": total_spend,
-        "last_interaction": last_interaction,
-        f"gender_{gender}": 1,
-        f"subscription_type_{subscription_type}": 1,
-        f"contract_length_{contract_length}": 1
-    }
+        "last_interaction": last_interaction
+    }])
 
-    # Fill missing one-hot encodings with 0
-    full_input = {feature: input_dict.get(feature, 0) for feature in FEATURE_ORDER}
+    cat_input = pd.DataFrame([[gender, subscription_type, contract_length]], columns=cat_cols)
+    cat_encoded = encoder.transform(cat_input)
+    cat_df = pd.DataFrame(cat_encoded, columns=encoder.get_feature_names_out(cat_cols))
 
-    return pd.DataFrame([full_input])
+    combined = pd.concat([num_input, cat_df], axis=1)
+    scaled = scaler.transform(combined)
+    pca_input = pca.transform(scaled)  # Only transform, do NOT fit again
+    return pca_input
 
-# Gradio prediction function
+# Prediction function
 def predict_churn(age, tenure, usage_frequency, support_calls, payment_delay,
                   total_spend, last_interaction, gender, subscription_type, contract_length):
     try:
-        input_df = prepare_input(age, tenure, usage_frequency, support_calls, payment_delay,
-                                 total_spend, last_interaction, gender, subscription_type, contract_length)
-        prediction = model.predict(input_df)[0]
-        return "Will Churn" if prediction > 0.5 else "Won't Churn"
+        input_vector = prepare_input(age, tenure, usage_frequency, support_calls, payment_delay,
+                                     total_spend, last_interaction, gender, subscription_type, contract_length)
+        proba = model.predict_proba(input_vector)[0][1]
+        label = "Will Churn" if proba >= 0.5 else "Won't Churn"
+        confidence = f"{proba * 100:.2f}% confidence"
+        return f"{label} ({confidence})"
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Gradio UI
+# Gradio Interface
 demo = gr.Interface(
     fn=predict_churn,
     inputs=[
-        gr.Number(label="Age"),
-        gr.Number(label="Tenure (months)"),
-        gr.Number(label="Usage Frequency (last month)"),
-        gr.Number(label="Support Calls (last month)"),
-        gr.Number(label="Payment Delay (days)"),
-        gr.Number(label="Total Spend"),
-        gr.Number(label="Days Since Last Interaction"),
-        gr.Radio(["Male", "Female"], label="Gender"),
-        gr.Radio(["Basic", "Standard", "Premium"], label="Subscription Type"),
-        gr.Radio(["Monthly", "Quarterly", "Annual"], label="Contract Length")
+        gr.Number(label="Age", info="The age of the customer"),
+        gr.Number(label="Tenure (months)", info="Duration in months for which a customer has been using the company's products or services"),
+        gr.Number(label="Usage Frequency", info="Number of times the customer used the company’s services in the last month"),
+        gr.Number(label="Support Calls", info="Number of customer support calls in the last month"),
+        gr.Number(label="Payment Delay (days)", info="Days delayed in payment for the last month"),
+        gr.Number(label="Total Spend", info="Total money the customer has spent on company services"),
+        gr.Number(label="Days Since Last Interaction", info="Number of days since last customer interaction"),
+        gr.Radio(["Male", "Female"], label="Gender", info="Gender of the customer"),
+        gr.Radio(["Basic", "Standard", "Premium"], label="Subscription Type", info="Customer’s selected subscription plan"),
+        gr.Radio(["Monthly", "Quarterly", "Annual"], label="Contract Length", info="The duration of the signed customer contract")
     ],
     outputs="text",
     title="Customer Churn Prediction",
-    description="Fill in the customer details to predict whether they will churn."
+    description="Enter customer details to predict whether they will churn. Hover over each input for more information."
 )
 
 if __name__ == "__main__":

@@ -3,9 +3,9 @@ from mlflow.tracking import MlflowClient
 
 # --- Configuration ---
 MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"  # Change this if your MLflow server uses a different host/port
-EXPERIMENT_NAME = "CustomerChurn_Model_Registry"
-RUN_ID = "c7d55974debc48a9bacb0b37862440ec"
-MODEL_NAME = "CustomerChurnClassifier_LGBM"
+EXPERIMENT_NAME = "CustomerChurn_Model_Registry2"
+RUN_ID = "f40965c8d55449c38c42326248abc811"
+MODEL_NAME = "CustomerChurnClassifier_RFC"
 ARTIFACT_PATH = "model"  # Path within the run where the model was logged
 
 # Initialize MLflow

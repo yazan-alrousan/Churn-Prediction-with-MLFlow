@@ -2,13 +2,14 @@ import os
 import pandas as pd
 import numpy as np
 import optuna
-from lightgbm import LGBMClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import recall_score
+from sklearn.metrics import accuracy_score, precision_score, f1_score, recall_score
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.decomposition import PCA
 import mlflow
-import mlflow.lightgbm
+import mlflow.sklearn
 import pickle
 
 # Paths to your dataset files
@@ -53,46 +54,64 @@ X_num = pd.DataFrame(SimpleImputer(strategy="median").fit_transform(X_num), colu
 
 X_preprocessed = pd.concat([X_num, X_cat], axis=1)
 
-# Save encoder if needed later
+# Save encoder
 with open("encoder.pkl", "wb") as f:
     pickle.dump(encoder, f)
 
-# Split data
+# Train-test split (with stratification)
 X_train, X_val, y_train, y_val = train_test_split(X_preprocessed, y, test_size=0.2, random_state=42, stratify=y)
+
+# Scaling and PCA
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_val_scaled = scaler.transform(X_val)
+
+# Load best PCA component count
+with open("best_pca_components.pkl", "rb") as f:
+    best_n_components = pickle.load(f)
+
+# Apply PCA
+pca = PCA(n_components=best_n_components, random_state=42)
+X_train_pca = pca.fit_transform(X_train_scaled)
+X_val_pca = pca.transform(X_val_scaled)
+
 
 # MLflow tracking setup
 mlflow.set_tracking_uri("http://127.0.0.1:5000")
-EXPERIMENT_NAME = "Optuna_LightGBM_Churn"
+EXPERIMENT_NAME = "Optuna_RF_Churn2"
 mlflow.set_experiment(EXPERIMENT_NAME)
 
 def objective(trial):
     params = {
-        "num_leaves": trial.suggest_int("num_leaves", 10, 200),
-        "max_depth": trial.suggest_int("max_depth", 3, 12),
-        "learning_rate": trial.suggest_float("learning_rate", 1e-3, 0.3, log=True),
-        "n_estimators": trial.suggest_int("n_estimators", 50, 1000),
-        "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
-        "subsample": trial.suggest_float("subsample", 0.5, 1.0),
-        "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
+        "n_estimators": trial.suggest_int("n_estimators", 50, 300),
+        "max_depth": trial.suggest_int("max_depth", 3, 20),
+        "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
+        "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 20),
+        "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", None]),
         "random_state": 42,
-        "n_jobs": -1,
+        "n_jobs": -1
     }
 
-    model = LGBMClassifier(**params)
-    model.fit(X_train, y_train)
-
-    y_pred = model.predict(X_val)
+    model = RandomForestClassifier(**params)
+    model.fit(X_train_pca, y_train)
+    y_pred = model.predict(X_val_pca)
     recall = recall_score(y_val, y_pred)
+    precision = precision_score(y_val, y_pred)
+    f1 = f1_score(y_val, y_pred)
+    accuracy = accuracy_score(y_val, y_pred)
 
     with mlflow.start_run(nested=True):
         mlflow.log_params(params)
         mlflow.log_metric("recall", recall)
-        mlflow.lightgbm.log_model(model, "model")
+        mlflow.log_metric("precision", precision)
+        mlflow.log_metric("f1_score", f1)
+        mlflow.log_metric("accuracy", accuracy)
+        mlflow.sklearn.log_model(model, "model")
 
     return recall
 
 if __name__ == "__main__":
-    study = optuna.create_study(direction="maximize", study_name="lgbm_churn_recall")
+    study = optuna.create_study(direction="maximize", study_name="rf_churn_recall")
     study.optimize(objective, n_trials=30)
 
     print("Best trial:")
