@@ -24,8 +24,15 @@ behavior and its associated features, companies can develop strategies to retain
 existing customers, improve customer satisfaction, and reduce customer turnover. 
 Predictive modeling techniques can also be applied to forecast and proactively 
 address potential churn, enabling companies to take proactive measures to retain 
-at-risk customers. 
+at-risk customers.
+
+
+
+
+
 2.Pre-processing the Dataset 
+
+
  
 Pre-processing data is a crucial step for training a model. The pre-processing 
 techniques used for this dataset are: 
